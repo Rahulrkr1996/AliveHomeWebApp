@@ -1,0 +1,3 @@
+run server python manage.py runserver
+You need to bypass proxy for 10*
+Firefox has some error in running so need to figure that out

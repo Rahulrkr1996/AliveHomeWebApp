@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Alive Home</title>
+    {% load staticfiles %}
+    <script src="{% static 'jquery-3.2.1.min.js' %}"></script>
+    <style type="text/css">
+    body{
+    	background-color: #b4dffd;
+    	display: inline-block;
+    }
+    .container{
+    	display: inline-block;
+    	background-color: white;
+    	padding: 4vh 4vw;
+    	margin-left: 28vw;
+    	margin-top: 10vh; 
+    	width: 30vw;
+    	border-radius: 5%;
+    	border: 0.5vw solid;
+    	overflow: auto;
+	}
+	input{
+    	font-size: 1vw;
+    	width: 19.4vw;
+    	padding: 1vw 1vh;
+    }
+    input[type="text"]{
+    	margin: 5vh 0vw 2vh 3vw;
+    }
+    input[type="password"]{
+    	margin: 1vh 3vw;
+    }
+    #login_btn{
+    	float: left;
+    	margin: 0vh 9vw;
+    	font-size: 1vw; 
+    	padding: 2vh 3vw;
+    	color: white;
+    	border:none;
+    	border-radius: 1vw;
+    	margin-top: 4vh;
+    	background-color: #428bca;
+    }
+	@-webkit-keyframes spin {
+		0% { -webkit-transform: rotate(0deg);}
+		100% { -webkit-transform: rotate(360deg);}
+	}
+	@-moz-keyframes spin {
+		0% { -moz-transform: rotate(0deg);}
+		100% { -moz-transform: rotate(360deg);}
+	}
+	@-o-keyframes spin {
+		0% { -o-transform: rotate(0deg);}
+		100% { -o-transform: rotate(360deg);}
+	}
+	@-ms-keyframes spin {
+		0% { -ms-transform: rotate(0deg);}
+		100% { -ms-transform: rotate(360deg);}
+	}
+	span{
+		font-size: 2.5vw;
+		font-weight: bold;
+		color:#034f84;
+		margin-left: 1vw;
+	}
+	button{
+		font-size: 1vw;
+		padding: 1vh 1vw;
+	}
+	#logout{
+		position: relative;
+		float: right;
+		color: white;
+		background-color: #428bca;
+		border:none;
+		border-radius: 0.5vw;
+	}
+	#light{
+		float: left;
+		width: 6vw;
+		height:10vh;
+		margin:6vh 0vw 0vh 1vw;/*top right bottom left*/
+    }
+    #light_btn{
+    	border:none;
+    	margin: -20vh 0vw 0vh 0vw;
+    }
+    #fan{
+    	float: left;
+    	margin:20vh 0vw 0vw -13vw; 
+    }
+    .fanbuttons{
+	    display: inline;
+    	float: right;
+    	margin: 10vh 0vw 0vw 1vw;	
+    }
+    </style>
+</head>
+<body>
+<div class="container" style="width: 30vw; height: 50vh;">
+	<img src="{% static 'alive_logo.png' %}" style="width: 4vw;"><span>Alive Home</span>
+	<div class="Login">
+	    <input type="text" name="username" placeholder="Username">
+	    <input type="password" name="password" placeholder="Password">
+	    <button id="login_btn" onclick="login()">Login</button>
+	</div>
+	<div class="control-home">
+	<button id="logout" onclick="Logout()">Logout</button>
+	<img id="light" onclick="light_operation()" src="{% static 'lightoff.png' %}" >
+    <button id="light_btn" onclick="light_operation()" style="float: left; margin: 10vh 0vw 0vh 3vw;">On/Off</button>
+    <br>
+    <img id="fan" onclick="fan_operation(this.id)" src="{% static 'fanon.png' %}" style="width: 5vw;"></button><br>
+    <div class="fanbuttons"><button id="fan_speed_one" onclick="fan_operation(this.id)" style="font-size: 1vw; border:none;">One</button><button id="fan_speed_two" onclick="fan_operation(this.id)" style="font-size: 1vw; border:none;">Two</button><button id="fan_speed_three" onclick="fan_operation(this.id)" style="font-size: 1vw; border:none;">Three</button><button id="fan_speed_four" onclick="fan_operation(this.id)" style="font-size: 1vw; border:none;">Four</button><button id="fan_speed_five" onclick="fan_operation(this.id)" style="font-size: 1vw; border:none;">Five</button>
+	</div></div>
+</div>
+<script type="text/javascript">
+var socket = null;
+var isopen = false;
+var shared_aes_encryption_key;
+var username;
+var BULB_STATE;
+var FAN_STATE;
+var transfer_session;
+function login(){
+// socket.binaryType = "arraybuffer";
+username = String($("input[name='username']").val());
+// console.log(username);
+// console.log($("input[name='password']").val());
+sendText(rsa_encryption('LOGI-'+username+"-"+String($("input[name='password']").val())+"-"+shared_aes_encryption_key));
+sendText(rsa_encryption('ENQ-'+username+"-"+shared_aes_encryption_key));
+};
+// connect to the web socket
+socket = new WebSocket("ws://10.124.195.9:80");
+socket.onopen = function() {
+    console.log("Connected!");
+    shared_aes_encryption_key = shared_aes_key_generate();
+    // console.log(shared_aes_encryption_key);
+    isopen = true;
+}
+socket.onmessage = function(payload) {
+	var decrypted_data = aes_decryption(String(payload.data),String(shared_aes_encryption_key));
+	console.log(decrypted_data)
+	if(decrypted_data!=null){
+		data_parsed=decrypted_data.split("-");
+		var size = data_parsed.length;
+		if(data_parsed[0]=='VERIFY'){
+			if(data_parsed[1]=='True'){
+				if(size>2 && data_parsed[2]=='STATUS'){
+					if (data_parsed[3]=="TL_ON"){
+ 						$("#light").attr("src",'{% static "lighton.png" %}');
+ 						$("#light_btn").css("background-color","#428bca");
+                        BULB_STATE = "TL_ON";
+                    }else if (data_parsed[3]=="TL_OFF") {
+ 						$("#light").attr("src",'{% static "lightoff.png" %}');
+                        $("#light_btn").css("background-color","#e7e7e7");
+                        BULB_STATE = "TL_OFF";
+	                }
+                    if(data_parsed[4] == "FAN_OFF") {                     
+                        changeFanSpeed(0, false);
+                        FAN_STATE = "FAN_OFF";
+                    } else if(data_parsed[4] == "FAN_ON_1") {                     
+                        changeFanSpeed(1, false);
+                        FAN_STATE = "FAN_ON_1";
+                    } else if(data_parsed[4] == "FAN_ON_2") {                     
+                        changeFanSpeed(2, false);
+                        FAN_STATE = "FAN_ON_2";
+                    } else if(data_parsed[4] == "FAN_ON_3") {                     
+                        changeFanSpeed(3, false);
+                        FAN_STATE = "FAN_ON_3";
+                    } else if(data_parsed[4] == "FAN_ON_4") {                      
+                        changeFanSpeed(4, false);
+                        FAN_STATE = "FAN_ON_4";
+                    } else if(data_parsed[4] == "FAN_ON_5") {                      
+                        changeFanSpeed(5, false);
+                        FAN_STATE = "FAN_ON_5";
+                    }
+				}else if (data_parsed[2]=="BLEMAC"){
+					// setTimeout(function(){alert('Hardware Connected')},1000);
+					sendText(aes_encryption('sessionRequest-'+username, shared_aes_encryption_key));
+				}
+			}
+		}else if (data_parsed[0]=="NOTIFY"){
+			console.log(data_parsed[1])
+			if(data_parsed[1]!="TRUE"){
+			// setTimeout(function(){alert(data_parsed[1]);},1000);
+			}
+		}else if (data_parsed[0]=="session"){
+			transfer_session=data_parsed[1];
+			sendText(aes_encryption("STATUS-"+username+"-"+transfer_session,shared_aes_encryption_key));
+		}else{
+			// setTimeout(function(){alert(decrypted_data);},1000)
+		}
+	}
+}
+
+socket.onclose = function(e) {
+    console.log("Connection closed.");
+    // location.reload();
+    socket = null;
+    isopen = false;
+}
+
+//Send Text message to socket
+function sendText(message) {
+    if (isopen) {
+        socket.send(message);
+        // console.log("Text message sent.");               
+    } else {
+        console.log("Connection not opened.")
+    }
+}
+
+function light_operation(){
+	if(BULB_STATE=="TL_ON"){
+		sendText(aes_encryption('CTRL-'+username+"-"+"TL_OFF"+"-"+FAN_STATE+"-"+transfer_session,shared_aes_encryption_key));
+		$("#light_btn").css("background-color","#e7e7e7");
+	}else{
+		sendText(aes_encryption('CTRL-'+username+"-"+"TL_ON"+"-"+FAN_STATE+"-"+transfer_session,shared_aes_encryption_key));
+		$("#light_btn").css("background-color","#428bca");
+	}
+}
+function fan_operation(id){
+	if(id=='fan'){
+		sendText(aes_encryption('CTRL-'+username+"-"+BULB_STATE+"-"+"FAN_OFF"+"-"+transfer_session,shared_aes_encryption_key));		
+	}
+	if(id=='fan_speed_one'){
+		sendText(aes_encryption('CTRL-'+username+"-"+BULB_STATE+"-"+"FAN_ON_1"+"-"+transfer_session,shared_aes_encryption_key));		
+	}
+	if(id=='fan_speed_two'){
+		sendText(aes_encryption('CTRL-'+username+"-"+BULB_STATE+"-"+"FAN_ON_2"+"-"+transfer_session,shared_aes_encryption_key));		
+	}
+	if(id=='fan_speed_three'){
+		sendText(aes_encryption('CTRL-'+username+"-"+BULB_STATE+"-"+"FAN_ON_3"+"-"+transfer_session,shared_aes_encryption_key));		
+	}
+	if(id=='fan_speed_four'){
+		sendText(aes_encryption('CTRL-'+username+"-"+BULB_STATE+"-"+"FAN_ON_4"+"-"+transfer_session,shared_aes_encryption_key));		
+	}
+	if(id=='fan_speed_five'){
+		sendText(aes_encryption('CTRL-'+username+"-"+BULB_STATE+"-"+"FAN_ON_5"+"-"+transfer_session,shared_aes_encryption_key));		
+	}
+
+}
+
+function changeFanSpeed(speed, recievedSend){
+if(speed==0){
+	$("#fan").css("animation","none");
+	$("#fan").attr("src","{% static 'fanoff.png' %}")
+	$("#fan_speed_one").css("background-color",'#e7e7e7');
+	$("#fan_speed_two").css("background-color",'#e7e7e7');
+	$("#fan_speed_three").css("background-color",'#e7e7e7');
+	$("#fan_speed_four").css("background-color",'#e7e7e7');
+	$("#fan_speed_five").css("background-color",'#e7e7e7');
+}
+if(speed==1){
+	$("#fan").attr("src","{% static 'fanon.png' %}")
+	$("#fan").css("animation","spin 5s infinite linear");
+	$("#fan_speed_one").css("background-color",'#428bca');
+	$("#fan_speed_two").css("background-color",'#e7e7e7');
+	$("#fan_speed_three").css("background-color",'#e7e7e7');
+	$("#fan_speed_four").css("background-color",'#e7e7e7');
+	$("#fan_speed_five").css("background-color",'#e7e7e7');
+}
+if(speed==2){
+	$("#fan").attr("src","{% static 'fanon.png' %}")
+	$("#fan").css("animation","spin 4s infinite linear");
+	$("#fan_speed_one").css("background-color",'#428bca');
+	$("#fan_speed_two").css("background-color",'#428bca');
+	$("#fan_speed_three").css("background-color",'#e7e7e7');
+	$("#fan_speed_four").css("background-color",'#e7e7e7');
+	$("#fan_speed_five").css("background-color",'#e7e7e7');
+}
+if(speed==3){
+	$("#fan").attr("src","{% static 'fanon.png' %}")
+	$("#fan").css("animation","spin 3s infinite linear");
+	$("#fan_speed_one").css("background-color",'#428bca');
+	$("#fan_speed_two").css("background-color",'#428bca');
+	$("#fan_speed_three").css("background-color",'#428bca');
+	$("#fan_speed_four").css("background-color",'#e7e7e7');
+	$("#fan_speed_five").css("background-color",'#e7e7e7');
+}
+if(speed==4){
+	$("#fan").attr("src","{% static 'fanon.png' %}")
+	$("#fan").css("animation","spin 2s infinite linear");
+	$("#fan_speed_one").css("background-color",'#428bca');
+	$("#fan_speed_two").css("background-color",'#428bca');
+	$("#fan_speed_three").css("background-color",'#428bca');
+	$("#fan_speed_four").css("background-color",'#428bca');
+	$("#fan_speed_five").css("background-color",'#e7e7e7');
+}
+if(speed==5){
+	$("#fan").attr("src","{% static 'fanon.png' %}")
+	$("#fan").css("animation","spin 1s infinite linear");
+	$("#fan_speed_one").css("background-color",'#428bca');
+	$("#fan_speed_two").css("background-color",'#428bca');
+	$("#fan_speed_three").css("background-color",'#428bca');
+	$("#fan_speed_four").css("background-color",'#428bca');
+	$("#fan_speed_five").css("background-color",'#428bca');
+}
+$(".Login").hide();
+$(".control-home").show();
+}
+function Logout(){
+	sendText(aes_encryption('LOGO-'+username+"-"+transfer_session,shared_aes_encryption_key));
+	location.reload();
+}
+$(document).ready(function(){
+    $(".control-home").hide();
+    // $(".Login").hide();
+})
+window.onbeforeunload = function(event)
+{
+    return Logout();
+};
+
+function shared_aes_key_generate(){
+	var response ='none';
+	$.ajax({
+    async: false,
+    url: '/aes/',
+    type: 'POST',
+    datatype: 'json',
+    contentType: "application/x-www-form-urlencoded",
+    data:{
+    	action_perform: 'shared_key',
+    	message: 'None',
+    	shared_aes_key: 'None'
+    },
+    success: function (data) {
+    	response = data;
+	},
+    error: function (error) {
+    	console.log("fail");
+    }
+
+});
+	return String(response);
+}
+function aes_encryption(text_to_be_encrypted, shared_key){
+	var response;
+	$.ajax({
+    async: false,
+    url: '/aes/',
+    type: 'POST',
+    data:{
+    	action_perform: 'aes_encrypt',
+    	message: text_to_be_encrypted,
+    	shared_aes_key: shared_key
+    },
+    success: function (data) {
+		response = data;
+	},
+    error: function (error) {
+    	console.log("fail")    
+    }
+});
+	return response;
+}
+
+function aes_decryption(text_to_be_encrypted, shared_key){
+	var response;
+	$.ajax({
+    async: false,
+    url: '/aes/',
+    type: 'POST',
+    data:{
+    	action_perform: 'aes_decrypt',
+    	message: text_to_be_encrypted,
+    	shared_aes_key: shared_key
+    },
+    success: function (data) {
+		response = data;
+	},
+    error: function (error) {
+    	console.log("fail")    
+    }
+});
+	return response;
+}
+function rsa_encryption(text_to_be_encrypted){
+	var response;
+	$.ajax({
+    async: false,
+    url: '/rsaencryption/',
+    type: 'POST',
+    data:{
+    	action_perform: 'rsa_encrypt',
+    	message: text_to_be_encrypted,
+    	shared_aes_key: 'none'
+    },
+    success: function (data) {
+		response = data;
+	},
+    error: function (error) {
+    	console.log("fail")    
+    }
+});
+	return response;
+}
+
+
+</script>
+</body>
+
+</html>
+
